@@ -368,6 +368,12 @@ reg btn_left     = 0;
 reg btn_right    = 0;
 reg btn_shot     = 0;
 reg btn_missile  = 0;
+reg btn_up2      = 0;
+reg btn_down2    = 0;
+reg btn_left2    = 0;
+reg btn_right2   = 0;
+reg btn_shot2    = 0;
+reg btn_missile2 = 0;
 reg btn_coin1    = 0;
 reg btn_coin2    = 0;
 reg btn_1p_start = 0;
@@ -394,7 +400,14 @@ always @(posedge CLK_49M) begin
 			'h6B: btn_left    <= pressed; // left
 			'h74: btn_right   <= pressed; // right
 			'h14: btn_shot    <= pressed; // ctrl						
-			'h11: btn_missile <= pressed; // alt						
+			'h11: btn_missile <= pressed; // alt	
+
+			'h1d: btn_up2     <= pressed; // w
+			'h1b: btn_down2   <= pressed; // s
+			'h1c: btn_left2   <= pressed; // a
+			'h23: btn_right2  <= pressed; // d
+			'h2a: btn_shot2   <= pressed; // v						
+			'h32: btn_missile2<= pressed; // b												
 		endcase
 	end
 end
@@ -412,12 +425,12 @@ wire m_rotary1_l = joystick_0[7];
 wire m_rotary1_r = joystick_0[6];
 
 //Player 2
-wire m_up2       = btn_up      | joystick_1[3];
-wire m_down2     = btn_down    | joystick_1[2];
-wire m_left2     = btn_left    | joystick_1[1];
-wire m_right2    = btn_right   | joystick_1[0];
-wire m_shot2     = btn_shot    | joystick_1[4];
-wire m_missile2  = btn_missile | joystick_1[5];
+wire m_up2       = btn_up2     | joystick_1[3];
+wire m_down2     = btn_down2   | joystick_1[2];
+wire m_left2     = btn_left2   | joystick_1[1];
+wire m_right2    = btn_right2  | joystick_1[0];
+wire m_shot2     = btn_shot2   | joystick_1[4];
+wire m_missile2  = btn_missile2| joystick_1[5];
 wire m_rotary2_l = joystick_1[7];
 wire m_rotary2_r = joystick_1[6];
 
