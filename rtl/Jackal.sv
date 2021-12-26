@@ -43,6 +43,10 @@ module Jackal
 	//005885s depending on which game's bootleg ROM sets are loaded)
 	input          [1:0] is_bootleg,
 	
+	//This input serves to select different fractional dividers to acheive 3.579545MHz for the YM2151 depending on
+	//whether Jackal runs with original or underclocked timings to normalize sync frequencies
+	input                underclock,
+	
 	//Screen centering (alters HSync and VSync timing in the primary Konami 005885 to reposition the video output)
 	input          [3:0] h_center, v_center,
 	
@@ -131,16 +135,19 @@ end
 
 //Fractional divider to obtain sound clock (implementation by Jotego as part of JTFRAME)
 //The PCB uses a 3.579545MHz oscillator directly connected to its YM2151 - this fractional divider replaces it as 3.579545MHz is
-//not divisible by any integer factor of the main clock
+//not divisible by any integer factor of the main clock (reconfigure as necessary depending on whether Jackal is running at native
+//timings or underclocked to normalize video frequencies)
 //Also use this divider to generate a clock enable for jt49_dcrm2 to high-pass filter the YM2151's sound for original Jackal ROM
 //sets
+wire [9:0] frac_cen_n = underclock ? 10'd63 : 10'd60;
+wire [9:0] frac_cen_m = underclock ? 10'd850 : 10'd824;
 wire cen_3m58, cen_1m79;
 wire cen_dcrm;
 jtframe_frac_cen #(4) jt51_cen
 (
 	.clk(clk_49m),
-	.n(10'd60),
-	.m(10'd824),
+	.n(frac_cen_n),
+	.m(frac_cen_m),
 	.cen({cen_dcrm, 1'bZ, cen_1m79, cen_3m58})
 );
 

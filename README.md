@@ -19,6 +19,7 @@ An FPGA implementation of Jackal/Top Gunner for the MiSTer platform
 - YM2151 implementation using JT51 by Jotego
 - Modeling of bootleg PCBs' timing and graphical differences
 - Fully-tuned audio filters matching both bootleg and original PCBs
+- Option for normalized video timings to use with picky HDTVs and monitors (underclocks the game by ~1.8%)
 
 ## **NOTE**
 This core requires SDRAM to function properly, which is used to hold tilemap data.  While the game will run without SDRAM, the tilemap layer will not be visible without it.
