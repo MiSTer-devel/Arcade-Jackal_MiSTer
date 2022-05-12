@@ -178,12 +178,12 @@ wire cs_controls_dip1_dip3 = ~n_iocs & (maincpu_A[3:2] == 2'b00) & maincpu_rw;
 wire cs_rotary = ~n_iocs & (maincpu_A[3:2] == 2'b01) & maincpu_rw;
 wire cs_dip2 = ~n_iocs & (maincpu_A[3:2] == 2'b10) & maincpu_rw;
 wire cs_bankswitch = ~n_iocs & (maincpu_A[3:2] == 2'b11) & ~maincpu_rw;
-wire cs_mainsharedram = (maincpu_A >= 16'h0060 & maincpu_A <= 16'h1FFF);
+wire cs_mainsharedram = ~n_crcs;
 wire cs_eprom1 = (maincpu_A[15:14] == 2'b01 | maincpu_A[15:14] == 2'b10) & maincpu_rw;
 wire cs_eprom2 = (maincpu_A[15:14] == 2'b11 & maincpu_rw);
 //Some of Jackal's address decoding logic is implemented in a PAL chip marked by Konami as the 007343 - instantiate an
 //implementation of this IC here
-wire n_cs_main_k005885, n_cs_sec_k005885, n_iocs;
+wire n_cs_main_k005885, n_cs_sec_k005885, n_iocs, n_crcs;
 k007343 u12D
 (
 	.A4(maincpu_A[4]),
@@ -201,8 +201,8 @@ k007343 u12D
 	.GATECS(maincpu_A[15:14] != 2'b00),
 	.MGCS(n_cs_main_k005885),
 	.SGCS(n_cs_sec_k005885),
-	.IOCS(n_iocs)
-	//.CRCS
+	.IOCS(n_iocs),
+	.CRCS(n_crcs)
 );
 //Multiplex data inputs to main CPU
 assign maincpu_Din = (~n_cs_main_k005885 & maincpu_rw) ? main_k005885_Dout:
@@ -357,11 +357,12 @@ wire [7:0] main_k005885_Dout;
 wire [4:0] main_color;
 wire [3:0] main_tile_data; //Jackal does not use a lookup table for tiles; tile data is fed back to the 005885 directly
 wire [3:0] ocf0, ocb0;
-wire tile_attrib_D4, tile_attrib_D5;
-wire e, q, irq;
+wire main_vram_D4, main_vram_D5;
+wire h1, e, q, irq, nrmw;
 k005885 u11F
 (
 	.CK49(clk_49m),
+	.H1O(h1),
 	.NRD(~maincpu_rw),
 	.A(maincpu_A[13:0]),
 	.DBi(maincpu_Dout),
@@ -388,13 +389,37 @@ k005885 u11F
 	.NCPE(e),
 	.NCPQ(q),
 	.NIRQ(irq),
-	.ATR4(tile_attrib_D4),
-	.ATR5(tile_attrib_D5),
+	.NRMW(nrmw),
+	.ATR4(main_vram_D4),
+	.ATR5(main_vram_D5),
 	.HCTR(h_center),
 	.VCTR(v_center),
 	.BTLG(is_bootleg)
 );
 
+//Divide the H1 output from the primary 005885 down by 4 to generate an external H4 signal for latching VRAM data bits 4 and 5,
+//then latch those data bits on both edges of H2 to obtain two extra attribute bits used by Jackal for its tilemaps
+reg [1:0] h4 = 2'b0;
+reg old_h1;
+always_ff @(posedge clk_49m) begin
+	old_h1 <= h1;
+	if(!old_h1 && h1)
+		h4 <= h4 + 2'd1;
+end
+reg [1:0] tile_attrib_D4, tile_attrib_D5;
+reg old_h4;
+always_ff @(posedge clk_49m) begin
+	old_h4 <= h4[1];
+	if(!old_h4 && h4[1]) begin
+		tile_attrib_D5[1] <= main_vram_D5;
+		tile_attrib_D4[1] <= main_vram_D4;
+	end
+	if(old_h4 && !h4[1]) begin
+		tile_attrib_D5[0] <= tile_attrib_D5[1];
+		tile_attrib_D4[0] <= tile_attrib_D4[1];
+	end
+end
+	
 //Graphics ROMs for primary 005885 tilemap generator (sprites only)
 wire [15:0] gfxrom0_Dsprite;
 maskrom_1 u8H
@@ -493,7 +518,8 @@ maskrom_4 u13H
 
 //Graphics ROMs (tilemaps only) for both 005885 tilemap generators (accessed externally from SDRAM)
 //Code by Shane Lynch
-wire [16:0] mask_rom_addr = sdram_sel ? {1'b1, tile_attrib_D5, tile_attrib_D4, gfxrom1_Atile[13:0]} : {1'b0, tile_attrib_D5, tile_attrib_D4, gfxrom0_Atile[13:0]};
+wire [16:0] mask_rom_addr = sdram_sel ? {1'b1, tile_attrib_D5[0], tile_attrib_D4[0], gfxrom1_Atile[13:0]}:
+                                        {1'b0, tile_attrib_D5[0], tile_attrib_D4[0], gfxrom0_Atile[13:0]};
 assign rom_addr = {7'h00, mask_rom_addr};
 reg sdram_sel = 0;
 reg [23:0] old_rom_addr;
@@ -532,7 +558,6 @@ prom_2 u14H
 //Sound chip - Yamaha YM2151 (uses JT51 implementation by Jotego)
 wire [7:0] ym2151_Dout;
 wire signed [15:0] sound_l_raw, sound_r_raw;
-wire [15:0] unsgined_sound_l_raw, unsgined_sound_r_raw;
 jt51 u8C
 (
 	.rst(~reset),
@@ -545,9 +570,7 @@ jt51 u8C
 	.din(soundcpu_Dout),
 	.dout(ym2151_Dout),
 	.xleft(sound_l_raw),
-	.xright(sound_r_raw),
-	.dacleft(unsgined_sound_l_raw),
-	.dacright(unsgined_sound_r_raw)
+	.xright(sound_r_raw)
 );
 
 //----------------------------------------------------- Final video output -----------------------------------------------------//
@@ -560,7 +583,7 @@ wire [7:0] color_bus = color_sel ? {main_color[3:0], sec_color[3:0]} : {3'b000, 
 //Write enable logic for palette RAM
 reg n_sQ_lat = 1;
 wire n_sQlat_clr = (e & ~soundcpu_rw);
-always_ff @(posedge clk_49m or negedge n_sQlat_clr) begin
+always_ff @(posedge clk_49m) begin
 	if(!n_sQlat_clr)
 		n_sQ_lat <= 1;
 	else if(cen_6m)
@@ -603,9 +626,18 @@ k007327 u1H
 
 //----------------------------------------------------- Final audio output -----------------------------------------------------//
 
-//The original Jackal PCB applies high-pass filtering at around 80Hz - use Jotego's jt49_dcrm2 module to apply this high-pass
-//filtering with JT51's unsigned output
+//Jackal produces sound out of the YM2151 at a significantly higher volume than most other games on the MiSTer platform - apply
+//6dB attenuation for better balance with other cores
+wire [15:0] unsigned_sound_l_atten = unsgined_sound_l_raw >> 1;
+wire [15:0] unsigned_sound_r_atten = unsgined_sound_r_raw >> 1;
+wire signed [15:0] sound_l_atten = sound_l_raw >>> 1;
+wire signed [15:0] sound_r_atten = sound_r_raw >>> 1;
+
+//The original Jackal PCB applies high-pass filtering at around 80Hz - convert JT51's signed output to unsigned and use Jotego's
+//jt49_dcrm2 module to apply this high-pass filtering
 //TODO: Replace this with a proper high-pass filter
+wire [15:0] unsgined_sound_l_raw = {~sound_l_raw[15], sound_l_raw[14:0]};
+wire [15:0] unsgined_sound_r_raw = {~sound_r_raw[15], sound_r_raw[14:0]};
 wire signed [15:0] sound_l_hpf, sound_r_hpf;
 jt49_dcrm2 #(16) hpf_left
 (
@@ -624,17 +656,11 @@ jt49_dcrm2 #(16) hpf_right
 	.dout(sound_r_hpf)
 );
 
-//Jackal produces sound out of the YM2151 at a significantly higher volume than most other games on the MiSTer platform - apply
-//6dB attenuation for better balance with other cores
-wire [15:0] unsigned_sound_l_atten = unsgined_sound_l_raw >> 1;
-wire [15:0] unsigned_sound_r_atten = unsgined_sound_r_raw >> 1;
-wire signed [15:0] sound_l_atten = sound_l_raw >>> 1;
-wire signed [15:0] sound_r_atten = sound_r_raw >>> 1;
-
 //Jackal employs a 4.823KHz low-pass filter for its YM2151 - filter the audio accordingly here and output the end result
 //The original PCB also has a variable low-pass filter that applies heavier filtering the higher the volume is set - apply this
 //extra low-pass filter when original ROMs are used (controlled by the is_bootleg flag - this filter and the 80Hz high-pass filter
 //are absent on bootleg ROM sets)
+wire signed [15:0] sound_l_lpf, sound_r_lpf;
 jackal_lpf lpf_left
 (
 	.clk(clk_49m),
@@ -642,7 +668,7 @@ jackal_lpf lpf_left
 	.select(is_bootleg[0]),
 	.in1(sound_l_atten),
 	.in2(sound_l_hpf),
-	.out(sound_l)
+	.out(sound_l_lpf)
 );
 jackal_lpf lpf_right
 (
@@ -651,7 +677,12 @@ jackal_lpf lpf_right
 	.select(is_bootleg[0]),
 	.in1(sound_r_atten),
 	.in2(sound_r_hpf),
-	.out(sound_r)
+	.out(sound_r_lpf)
 );
+
+//Bootleg Jackal PCBs lack stereo audio outputs - mix the final audio output to mono when bootleg ROM sets are in use, otherwise
+//output in stereo
+assign sound_l = is_bootleg[0] ? ((sound_l_lpf >>> 1) + (sound_r_lpf >>> 1)) : sound_l_lpf;
+assign sound_r = is_bootleg[0] ? ((sound_l_lpf >>> 1) + (sound_r_lpf >>> 1)) : sound_r_lpf;
 
 endmodule

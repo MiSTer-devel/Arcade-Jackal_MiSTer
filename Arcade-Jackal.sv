@@ -37,7 +37,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [45:0] HPS_BUS,
+	inout  [48:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -185,7 +185,6 @@ assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 
 assign VGA_F1 = 0;
 assign VGA_SCALER = 0;
@@ -238,10 +237,10 @@ localparam CONF_STR = {
 	"V,v",`BUILD_DATE
 };
 
-wire        forced_scandoubler;
-wire  [1:0] buttons;
-wire [31:0] status;
-wire [10:0] ps2_key;
+wire         forced_scandoubler;
+wire   [1:0] buttons;
+wire [127:0] status;
+wire  [10:0] ps2_key;
 
 wire        ioctl_download;
 wire        ioctl_upload;
@@ -365,7 +364,7 @@ always @(posedge CLK_50M) begin
 					cfg_data <= 2576980378;
 				else begin
 					if(underclock_r)
-						cfg_data <= 2831242442;
+						cfg_data <= 2824370494;
 					else
 						cfg_data <= 3566540843;
 				end
@@ -477,15 +476,15 @@ always @(posedge CLK_49M) begin
 			'h72: btn_down    <= pressed; // down
 			'h6B: btn_left    <= pressed; // left
 			'h74: btn_right   <= pressed; // right
-			'h14: btn_shot    <= pressed; // ctrl						
-			'h11: btn_missile <= pressed; // alt	
+			'h14: btn_shot    <= pressed; // ctrl
+			'h11: btn_missile <= pressed; // alt
 
 			'h1d: btn_up2     <= pressed; // w
 			'h1b: btn_down2   <= pressed; // s
 			'h1c: btn_left2   <= pressed; // a
 			'h23: btn_right2  <= pressed; // d
-			'h2a: btn_shot2   <= pressed; // v						
-			'h32: btn_missile2<= pressed; // b												
+			'h2a: btn_shot2   <= pressed; // v
+			'h32: btn_missile2<= pressed; // b
 		endcase
 	end
 end
@@ -591,9 +590,24 @@ end
 wire hblank, vblank;
 wire hs, vs;
 wire [4:0] r_out, g_out, b_out;
-wire [7:0] r = {r_out, r_out[4:2]};
-wire [7:0] g = {g_out, g_out[4:2]};
-wire [7:0] b = {b_out, b_out[4:2]};
+
+//Adjust the color tones based on the measured outputs of the weighted resistor DAC
+//(these values are based on those found on Jackal bootleg PCBs and may not match those
+//from the DAC integrated within the 007327 custom palette RAM + DAC module)
+wire [7:0] jackal_color[32] =
+'{
+	8'd0,   8'd7,   8'd14,  8'd21,
+	8'd30,  8'd37,  8'd44,  8'd51,
+	8'd65,  8'd71,  8'd79,  8'd85,
+	8'd96,  8'd102, 8'd110, 8'd116,
+	8'd139, 8'd146, 8'd153, 8'd160,
+	8'd170, 8'd176, 8'd184, 8'd190,
+	8'd205, 8'd210, 8'd218, 8'd224,
+	8'd234, 8'd241, 8'd248, 8'd255
+};
+wire [7:0] r = jackal_color[r_out];
+wire [7:0] g = jackal_color[g_out];
+wire [7:0] b = jackal_color[b_out];
 
 reg ce_pix;
 always @(posedge CLK_49M) begin
@@ -605,10 +619,11 @@ end
 
 wire rotate_ccw = 0;
 wire no_rotate = status[12] | direct_video;
-wire flip = ~no_rotate;
+wire flip = video_rotated;
+wire video_rotated;
 screen_rotate screen_rotate(.*);
 
-arcade_video #(240,24) arcade_video
+arcade_video #(240, 24) arcade_video
 (
 	.*,
 

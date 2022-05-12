@@ -22,8 +22,8 @@
 module jt51(
     input               rst,    // reset
     input               clk,    // main clock
-    input               cen,    // clock enable
-    input               cen_p1, // clock enable at half the speed
+    (* direct_enable *) input cen,    // clock enable
+    (* direct_enable *) input cen_p1, // clock enable at half the speed
     input               cs_n,   // chip select
     input               wr_n,   // write
     input               a0,
@@ -39,14 +39,8 @@ module jt51(
     output  signed  [15:0] right,
     // Full resolution output
     output  signed  [15:0] xleft,
-    output  signed  [15:0] xright,
-    // unsigned outputs for sigma delta converters, full resolution
-    output  [15:0] dacleft,
-    output  [15:0] dacright
+    output  signed  [15:0] xright
 );
-
-assign dacleft  = { ~xleft [15],  xleft[14:0] };
-assign dacright = { ~xright[15], xright[14:0] };
 
 // Timers
 wire [9:0]  value_A;

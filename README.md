@@ -70,5 +70,5 @@ Quick reference for folders and file placement:
 2) Bootleg PCBs have faster VSync timings than original PCBs, resulting in the in-game music failing to start - this behavior is recreated for bootleg versions of Jackal.  To work around this, pause the game for a short while prior to being given control
 
 ## Known Issues
-1) Sprites render one frame earlier than normal - this is not correct behavior and causes graphics rendered on both the sprite and tilemap layers partially split apart during scrolling
-2) Although bootleg flaws are modeled, the score display is not correctly rendered when the screen is flipped and the slower clocks used by bootleg Jackal PCBs are missing - as such, the core behaves as if said bootlegs used the same clocks as the original PCB
+1) The Japanese version of Jackal exhibits unusual behavior during the attract mode when adjusted for normalized video timings
+2) Tilemaps might render incorrectly - if this happens, reload the core to fix the issue

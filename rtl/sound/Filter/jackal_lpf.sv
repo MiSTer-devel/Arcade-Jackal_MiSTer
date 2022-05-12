@@ -58,23 +58,29 @@ module jackal_lpf(
 		lpf2_B2 = 18'd612;
 	end
 	
-	iir_1st_order lpf1_6db(.clk(clk),
-								.reset(reset),
-								.div(div),
-								.A2(lpf1_A2),
-								.B1(lpf1_B1),
-								.B2(lpf1_B2),
-								.in(audio_pre_lpf1),
-								.out(audio_post_lpf1)); 
+	iir_1st_order lpf1_6db
+	(
+		.clk(clk),
+		.reset(reset),
+		.div(div),
+		.A2(lpf1_A2),
+		.B1(lpf1_B1),
+		.B2(lpf1_B2),
+		.in(audio_pre_lpf1),
+		.out(audio_post_lpf1)
+	); 
 	
-	iir_1st_order lpf2_6db(.clk(clk),
-								.reset(reset),
-								.div(div),
-								.A2(lpf2_A2),
-								.B1(lpf2_B1),
-								.B2(lpf2_B2),
-								.in(audio_post_lpf1),
-								.out(audio_post_lpf2)); 
+	iir_1st_order lpf2_6db
+	(
+		.clk(clk),
+		.reset(reset),
+		.div(div),
+		.A2(lpf2_A2),
+		.B1(lpf2_B1),
+		.B2(lpf2_B2),
+		.in(audio_post_lpf1),
+		.out(audio_post_lpf2)
+	); 
 	 
 	assign out = select ? audio_post_lpf1 : audio_post_lpf2;
 
